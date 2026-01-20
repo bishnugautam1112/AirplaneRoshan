@@ -83,7 +83,7 @@ This isn't just "if hand left, go left." We use vector mathematics to create a v
 2.  **Vector Calculation:** We calculate the deviation ($\Delta$) of the wrist from the center.
 3.  **Deadzone:** Small shakes in the center are ignored (clamped to 0).
 4.  **Stabilization (EMA):** Raw webcam data is noisy. We use an **Exponential Moving Average** filter to smooth the output:
-    $$ S_t = \alpha \cdot X_t + (1 - \alpha) \cdot S_{t-1} $$
+   ```  $$ S_t = \alpha \cdot X_t + (1 - \alpha) \cdot S_{t-1} $$ ```
 
 ---
 
