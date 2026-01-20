@@ -1,0 +1,22 @@
+# ==========================================
+# 🚫 GIT IGNORE FILE
+# ==========================================
+
+# --- Python Bytecode (Junk files) ---
+__pycache__/
+*.py[cod]
+*$py.class
+
+# --- Virtual Environments (Do not upload these!) ---
+venv/
+env/
+.env
+.venv/
+
+# --- IDE Settings (VS Code / PyCharm) ---
+.vscode/
+.idea/
+
+# --- OS Generated Files ---
+.DS_Store
+Thumbs.db

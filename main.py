@@ -1,124 +1,174 @@
+"""
+AirplaneRoshan: Professional Flight Controller
+==============================================
+Main Entry Point.
+Coordinates Vision AI, Network Telemetry, and User Interface.
+
+Author: BishnuGautam1112 (Refactored)
+"""
 
 import cv2
-import mediapipe as mp
-import pygame
-import numpy as np
 import time
+import logging
+import sys
 
-# === Pygame Setup ===
-pygame.init()
-WIDTH, HEIGHT = 800, 600
-win = pygame.display.set_mode((WIDTH + 320, HEIGHT))  # Extra space for webcam
-pygame.display.set_caption("Gesture-Controlled Plane + Camera")
-clock = pygame.time.Clock()
+# Import Configuration
+try:
+    import config
+except ImportError:
+    print("❌ FATAL: config.py not found. Please restore the file.")
+    sys.exit(1)
 
-plane = pygame.Rect(WIDTH//2 - 25, HEIGHT - 100, 50, 50)
-plane_color = (0, 200, 255)
-bg_color = (30, 30, 30)
-font = pygame.font.SysFont(None, 48)
+# Import Local Modules
+from modules.gesture_engine import GestureEngine
+from modules.network_manager import NetworkBridge
 
-# === MediaPipe Setup ===
-cap = cv2.VideoCapture(0)
-hands = mp.solutions.hands.Hands(max_num_hands=2, min_detection_confidence=0.7)
-draw = mp.solutions.drawing_utils
+# Setup Logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='[%(asctime)s] %(levelname)s: %(message)s',
+    datefmt='%H:%M:%S'
+)
+logger = logging.getLogger("Main")
 
-started = False
-gesture = ""
-last_gesture_time = 0
 
-def fingers_up(lm):
-    tips = [8, 12, 16, 20]
-    return [lm[i].y < lm[i - 2].y for i in tips]
+def render_hud(frame, roll, pitch, is_tracking, fps):
+    """
+    Draws the Premium Heads-Up Display (HUD) overlay.
+    Keeps the main loop clean by isolating UI logic.
+    """
+    h, w, _ = frame.shape
+    cx, cy = w // 2, h // 2
 
-def is_thumbs_up(lm):
-    return lm[4].y < lm[3].y and all(lm[i].y > lm[i - 2].y for i in [8, 12, 16, 20])
+    # --- STYLE CONFIG ---
+    COLOR_ACTIVE = (0, 255, 0)  # Neon Green
+    COLOR_IDLE = (0, 0, 255)  # Red
+    COLOR_UI = (200, 200, 200)  # Light Gray
+    COLOR_TEXT = (255, 255, 255)  # White
 
-def is_index_pointing_right(lm): return lm[8].x > lm[5].x
-def is_index_pointing_left(lm): return lm[8].x < lm[5].x
+    status_color = COLOR_ACTIVE if is_tracking else COLOR_IDLE
 
-def detect_gesture(hands_data, hand_types):
-    global started
-    if not started:
-        for lm in hands_data:
-            if is_thumbs_up(lm):
-                started = True
-                return "START"
-        return ""
+    # 1. Center Crosshair (Static Reference)
+    # Horizontal & Vertical lines
+    cv2.line(frame, (cx - 20, cy), (cx + 20, cy), COLOR_UI, 1)
+    cv2.line(frame, (cx, cy - 20), (cx, cy + 20), COLOR_UI, 1)
+    # Central Box
+    cv2.rectangle(frame, (cx - 5, cy - 5), (cx + 5, cy + 5), COLOR_UI, 1)
 
-    if len(hands_data) == 2:
-        left_lm = hands_data[hand_types.index("Left")] if "Left" in hand_types else None
-        right_lm = hands_data[hand_types.index("Right")] if "Right" in hand_types else None
+    # 2. Virtual Joystick (Dynamic Indicator)
+    # Map float values (-1.0 to 1.0) to screen pixels relative to center
+    # Multiplier 0.3 means the dot moves 30% of screen width max
+    joy_x = int(cx + (roll * (w * 0.3)))
+    joy_y = int(cy + (pitch * (h * 0.3)))
 
-        if left_lm and right_lm:
-            f1 = fingers_up(left_lm)
-            f2 = fingers_up(right_lm)
+    # Draw Tether Line (Visualizes the 'pull')
+    if is_tracking:
+        cv2.line(frame, (cx, cy), (joy_x, joy_y), status_color, 2)
 
-            if f1 == [1, 0, 0, 0] and f2 == [1, 0, 0, 0]:
-                return "FORWARD"
-            elif f1 == [1, 0, 0, 0] and f2 == [0, 0, 0, 0] and is_index_pointing_right(left_lm):
-                return "RIGHT"
-            elif f2 == [1, 0, 0, 0] and f1 == [0, 0, 0, 0] and is_index_pointing_left(right_lm):
-                return "LEFT"
-            elif f1 == [0, 0, 0, 0] and f2 == [0, 0, 0, 0]:
-                return "DOWN"
-    return ""
+    # Draw Joystick Knob
+    cv2.circle(frame, (joy_x, joy_y), 15, status_color, -1)  # Filled
+    cv2.circle(frame, (joy_x, joy_y), 18, COLOR_TEXT, 2)  # Outline
 
-# === Main Loop ===
-running = True
-while running:
-    ret, frame = cap.read()
-    frame = cv2.flip(frame, 1)
-    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    results = hands.process(rgb)
+    # 3. Telemetry Panel (Bottom Left)
+    # Background Box for readability
+    panel_h = 90
+    cv2.rectangle(frame, (10, h - panel_h), (220, h - 10), (0, 0, 0), -1)
 
-    hands_data = []
-    hand_types = []
-    if results.multi_hand_landmarks and results.multi_handedness:
-        for i, hand_landmarks in enumerate(results.multi_hand_landmarks):
-            hands_data.append(hand_landmarks.landmark)
-            hand_types.append(results.multi_handedness[i].classification[0].label)
-            draw.draw_landmarks(frame, hand_landmarks, mp.solutions.hands.HAND_CONNECTIONS)
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    cv2.putText(frame, f"FPS  : {int(fps)}", (25, h - 65), font, 0.6, COLOR_TEXT, 1)
 
-    new_gesture = detect_gesture(hands_data, hand_types)
-    gesture = new_gesture if new_gesture else ""
+    # Roll/Pitch Text (Color changes based on intensity)
+    # If banking hard (>0.8), text turns Yellow
+    rp_color = (0, 255, 255) if abs(roll) > 0.8 or abs(pitch) > 0.8 else COLOR_ACTIVE
 
-    # === Pygame Drawing ===
-    win.fill(bg_color)
+    cv2.putText(frame, f"ROLL : {roll:+.2f}", (25, h - 40), font, 0.6, rp_color, 1)
+    cv2.putText(frame, f"PITCH: {pitch:+.2f}", (25, h - 15), font, 0.6, rp_color, 1)
 
-    # Move plane
-    if gesture == "LEFT":
-        plane.x -= 5
-    elif gesture == "RIGHT":
-        plane.x += 5
-    elif gesture == "FORWARD":
-        plane.y -= 5
-    elif gesture == "DOWN":
-        plane.y += 5
 
-    # Clamp to screen
-    plane.x = max(0, min(WIDTH - plane.width, plane.x))
-    plane.y = max(0, min(HEIGHT - plane.height, plane.y))
+def main():
+    """Main Execution Loop."""
 
-    pygame.draw.rect(win, plane_color, plane)
+    logger.info("--- ✈️ AirplaneRoshan Pro Launching ---")
+    logger.info(f"Targeting Unreal Engine at {config.UDP_IP}:{config.UDP_PORT}")
 
-    # Show gesture text
-    label = f"Gesture: {gesture if gesture else 'NONE'}"
-    text = font.render(label, True, (255, 255, 255))
-    win.blit(text, (50, 50))
+    # 1. Initialize Modules
+    try:
+        engine = GestureEngine()
+        # NetworkBridge is used as a Context Manager (with statement)
+        # This ensures the socket closes safely when we exit
+        network_ctx = NetworkBridge(config.UDP_IP, config.UDP_PORT)
+    except Exception as e:
+        logger.critical(f"Initialization Failed: {e}")
+        return
 
-    # === Show webcam feed ===
-    frame = cv2.resize(frame, (320, 240))
-    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    cam_surface = pygame.surfarray.make_surface(np.rot90(frame_rgb))
-    win.blit(cam_surface, (WIDTH, HEIGHT - 240))
+    # 2. Setup Camera
+    logger.info(f"Opening Camera ID {config.WEBCAM_ID}...")
+    cap = cv2.VideoCapture(config.WEBCAM_ID)
 
-    pygame.display.update()
-    clock.tick(30)
+    # Force Camera Resolution (Optimization)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, config.FRAME_WIDTH)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, config.FRAME_HEIGHT)
+    cap.set(cv2.CAP_PROP_FPS, config.FPS_LIMIT)
 
-    # Quit on ESC or window close
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
+    if not cap.isOpened():
+        logger.critical("❌ Error: Could not open webcam. Check connection.")
+        return
 
-cap.release()
-pygame.quit()
+    logger.info("✅ System Online. Press 'Q' to Exit.")
+
+    # Timing variables
+    prev_frame_time = 0
+    new_frame_time = 0
+
+    # 3. The Loop
+    # We use a context manager for the network to ensure cleanup
+    with network_ctx as network:
+        try:
+            while True:
+                # A. Capture
+                success, frame = cap.read()
+                if not success:
+                    logger.warning("Frame dropped or camera disconnected.")
+                    break
+
+                # B. Process (Vision & Math)
+                # 'frame' is updated with skeleton drawing inside engine.process
+                processed_frame, roll, pitch, is_tracking = engine.process(frame)
+
+                # C. Transmit (Networking)
+                network.send_telemetry({
+                    "roll": roll,
+                    "pitch": pitch,
+                    "active": is_tracking
+                })
+
+                # D. Render (UI)
+                # Calculate FPS using High-Res Timer
+                new_frame_time = time.perf_counter()
+                fps = 1 / (new_frame_time - prev_frame_time) if prev_frame_time > 0 else 0
+                prev_frame_time = new_frame_time
+
+                render_hud(processed_frame, roll, pitch, is_tracking, fps)
+
+                # E. Display
+                cv2.imshow("AirplaneRoshan Controller", processed_frame)
+
+                # F. Exit Condition
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    logger.info("Shutdown signal received.")
+                    break
+
+        except KeyboardInterrupt:
+            logger.info("User forced exit (Ctrl+C).")
+        except Exception as e:
+            logger.error(f"Unexpected runtime error: {e}")
+        finally:
+            # G. Cleanup
+            logger.info("Releasing resources...")
+            cap.release()
+            cv2.destroyAllWindows()
+            logger.info("--- Session Ended ---")
+
+
+if __name__ == "__main__":
+    main()

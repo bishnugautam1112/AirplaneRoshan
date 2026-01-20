@@ -1,0 +1,16 @@
+# ==========================================
+# 📦 AIRPLANEROSHAN DEPENDENCIES
+# ==========================================
+# Run: pip install -r requirements.txt
+
+# Core Computer Vision Library
+# Used for accessing the webcam and manipulating images
+opencv-python>=4.6.0.66
+
+# Hand Tracking AI
+# Google's framework for high-speed ML on CPU
+mediapipe>=0.9.0.0
+
+# Mathematical Operations
+# Used for vector calculations (optional but good for future physics)
+numpy>=1.21.0
