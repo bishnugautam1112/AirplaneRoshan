@@ -1,14 +1,9 @@
 ```markdown
+<div align="center">
+
 # ✈️ AirplaneRoshan Pro
-### The AI-Powered Virtual Flight Controller for Unreal Engine 5
 
-![Status](https://img.shields.io/badge/Status-Stable-success?style=for-the-badge)
-![Python](https://img.shields.io/badge/Python-3.10-blue?style=for-the-badge&logo=python&logoColor=white)
-![Unreal Engine](https://img.shields.io/badge/Unreal%20Engine-5.x-black?style=for-the-badge&logo=unrealengine&logoColor=white)
-![MediaPipe](https://img.shields.io/badge/AI-MediaPipe-orange?style=for-the-badge&logo=google)
-![License](https://img.shields.io/badge/License-MIT-purple?style=for-the-badge)
-
-> **"Look Ma, No Hands!"** — *Actually, it's all hands.* 
+> **"Control plane with just your hand moment!"** — *Actually, it's all hands.* 
 > 
 > **AirplaneRoshan Pro** transforms your standard webcam into a high-precision, zero-latency flight stick. By combining Google's MediaPipe Computer Vision with UDP networking, it allows you to fly 3D jets in Unreal Engine 5 using natural hand gestures.
 
