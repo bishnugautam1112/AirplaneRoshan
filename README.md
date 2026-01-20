@@ -1,18 +1,28 @@
-```markdown
+# ✈️ AirplaneRoshan Pro
+### The AI-Powered Virtual Flight Controller for Unreal Engine 5
+
 <div align="center">
 
-# ✈️ AirplaneRoshan Pro
+[![Status](https://img.shields.io/badge/Status-Stable-success?style=for-the-badge)](https://github.com/bishnugautam1112/AirplaneRoshan)
+[![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![Unreal Engine](https://img.shields.io/badge/Unreal%20Engine-5.x-0E1128?style=for-the-badge&logo=unrealengine&logoColor=white)](https://www.unrealengine.com/)
+[![MediaPipe](https://img.shields.io/badge/MediaPipe-Computer%20Vision-00C853?style=for-the-badge&logo=google&logoColor=white)](https://developers.google.com/mediapipe)
+[![Protocol](https://img.shields.io/badge/Protocol-UDP%20Socket-FF5722?style=for-the-badge)](https://en.wikipedia.org/wiki/User_Datagram_Protocol)
+[![License](https://img.shields.io/badge/License-MIT-purple?style=for-the-badge)](LICENSE)
 
-> **"Control plane with just your hand moment!"** — *Actually, it's all hands.* 
+</div>
+
+<br>
+
+> **"Look , No Hands!"** — *Actually, it's all hands.* 
 > 
 > **AirplaneRoshan Pro** transforms your standard webcam into a high-precision, zero-latency flight stick. By combining Google's MediaPipe Computer Vision with UDP networking, it allows you to fly 3D jets in Unreal Engine 5 using natural hand gestures.
 
----
 
 ## 📑 Table of Contents
 1. [🌟 Key Features](#-key-features)
 2. [🏗️ System Architecture](#%EF%B8%8F-system-architecture)
-3. [🧠 How It Works (The Math)](#-how-it-works-under-the-hood)
+3. [🧠 How It Works](#-how-it-works-under-the-hood)
 4. [🚀 Installation Guide](#-installation-guide)
 5. [🔌 Unreal Engine Integration](#-unreal-engine-integration)
 6. [⚙️ Configuration](#%EF%B8%8F-configuration)
@@ -69,38 +79,18 @@ Every frame, the Python client sends a lightweight JSON packet to `127.0.0.1:500
 
 This isn't just "if hand left, go left." We use vector mathematics to create a virtual analog stick.
 
-### 1. The Coordinate System
-MediaPipe returns hand landmarks normalized between `[0.0, 1.0]`.
-*   **Wrist Center:** `(0.5, 0.5)`
-*   **Left Edge:** `0.0`
-*   **Right Edge:** `1.0`
-
-### 2. The Vector Calculation
-We calculate the deviation ($\Delta$) of the wrist from the center of the screen:
-$$ \Delta x = \text{Wrist}_x - 0.5 $$
-$$ \Delta y = \text{Wrist}_y - 0.5 $$
-
-### 3. The Deadzone
-To prevent the plane from drifting when your hand shakes slightly in the center, we apply a **Deadzone Clamp**:
-If $| \Delta x | < \text{Threshold}$, then $\Delta x = 0$.
-
-### 4. Sensitivity & Mapping
-We multiply the deviation by a `SENSITIVITY` factor and clamp it to physical limits:
-$$ \text{Roll} = \text{clamp}(\Delta x \times \text{Sensitivity}, -1.0, 1.0) $$
-
-### 5. Signal Stabilization (EMA)
-Raw webcam data is noisy. To make the flight smooth, we use an **Exponential Moving Average** filter. This acts like a virtual shock absorber.
-$$ S_t = \alpha \cdot X_t + (1 - \alpha) \cdot S_{t-1} $$
-*   $S_t$: The new smoothed value.
-*   $X_t$: The raw input from the camera.
-*   $\alpha$: The smoothing factor (defined in `config.py`).
+1.  **Normalization:** MediaPipe normalizes the hand coordinates to `[0.0, 1.0]`. Center is `(0.5, 0.5)`.
+2.  **Vector Calculation:** We calculate the deviation ($\Delta$) of the wrist from the center.
+3.  **Deadzone:** Small shakes in the center are ignored (clamped to 0).
+4.  **Stabilization (EMA):** Raw webcam data is noisy. We use an **Exponential Moving Average** filter to smooth the output:
+    $$ S_t = \alpha \cdot X_t + (1 - \alpha) \cdot S_{t-1} $$
 
 ---
 
 ## 🚀 Installation Guide
 
 ### Prerequisites
-*   Python 3.10 or 3.11 (Python 3.13 is NOT supported by MediaPipe yet).
+*   **Python 3.10 or 3.11** (⚠️ Python 3.13 is NOT currently supported by MediaPipe).
 *   A Webcam.
 *   Unreal Engine 4.27 or 5.x.
 
@@ -123,13 +113,13 @@ python3 -m venv .venv
 source .venv/bin/activate
 ```
 
-### Step 3: Install Dependencies
-This project requires specific versions of MediaPipe and Protobuf to function correctly.
+### Step 3: Install Dependencies (CRITICAL)
+This project requires specific versions of MediaPipe and Protobuf to function correctly on Windows.
 
 ```bash
-pip install -r requirements.txt
+# Run this exact command to avoid version conflicts
+pip install mediapipe==0.10.9 protobuf==3.20.3 opencv-python numpy
 ```
-*(If `requirements.txt` is missing, run: `pip install mediapipe==0.10.9 protobuf==3.20.3 opencv-python numpy`)*
 
 ### Step 4: System Check
 Run the diagnostic tool to ensure everything is ready.
@@ -142,26 +132,15 @@ If you see **[ OK ]** across the board, you are ready to fly.
 
 ## 🔌 Unreal Engine Integration
 
-To make your jet respond to Python, follow these steps in Unreal Engine 5.
+To make your jet respond to Python, you need to set up a UDP Receiver in Unreal Engine.
 
-### A. Enable Plugins
-1.  Open UE5.
-2.  Go to **Edit > Plugins**.
-3.  Search for **"UDP Messaging"** or download the free **"UDP Socket Receiver"** from the Marketplace.
+**👉 [Click Here for the Step-by-Step Connection Guide](HOW_TO_CONNECT.md)**
 
-### B. The Blueprint Logic
-In your **Jet Pawn Blueprint**:
-
-1.  **Event BeginPlay:** Create a UDP Socket Receiver bound to `127.0.0.1` Port `5005`.
-2.  **On Data Received:**
-    *   Convert Bytes to String.
-    *   Parse the JSON String into `TargetRoll` and `TargetPitch` floats.
-3.  **Event Tick:**
-    *   Use `AddActorLocalRotation`.
-    *   **Roll Input:** `TargetRoll * TurnSpeed * DeltaSeconds`.
-    *   **Pitch Input:** `TargetPitch * TurnSpeed * DeltaSeconds`.
-
-> **💡 Pro Tip:** Always multiply by `DeltaSeconds` to ensure smooth movement regardless of frame rate.
+*Short Version:*
+1.  Install the **"UDP Socket Receiver"** plugin in UE5.
+2.  Create a Blueprint to listen on IP `127.0.0.1` and Port `5005`.
+3.  Parse the incoming JSON string (`{"roll":...}`) into Float variables.
+4.  Apply `AddActorLocalRotation` to your Jet Pawn.
 
 ---
 
@@ -190,7 +169,7 @@ The system uses a **Virtual Joystick** method. Imagine an invisible stick in the
 | **Move Hand Left** | Roll Left | `roll < 0` | Plane banks Left |
 | **Move Hand Up** | Pitch Up | `pitch < 0` | Plane Nose Up (Climb) |
 | **Move Hand Down** | Pitch Down | `pitch > 0` | Plane Nose Down (Dive) |
-| **Remove Hand** | Auto-Level | `roll: 0, pitch: 0` | Plane stabilizes automatically |
+| **Remove Hand** | Auto-Level | `roll: 0` | Plane stabilizes automatically |
 
 ---
 
